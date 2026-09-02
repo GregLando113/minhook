@@ -24,24 +24,30 @@
 #  NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 #  SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-cmake_minimum_required(VERSION 3.0...3.5)
+cmake_minimum_required(VERSION 4.4.3)
 
-project(minhook LANGUAGES C)
+project(minhook
+  VERSION 1.3.3
+  DESCRIPTION "The Minimalistic x86/x64 API Hooking Library for Windows"
+  HOMEPAGE_URL "https://github.com/TsudaKageyu/minhook"
+  LANGUAGES C
+)
 
 include(CMakePackageConfigHelpers)
+include(GNUInstallDirs)
 
-set(MINHOOK_MAJOR_VERSION 1)
-set(MINHOOK_MINOR_VERSION 3)
-set(MINHOOK_PATCH_VERSION 3)
-set(MINHOOK_VERSION ${MINHOOK_MAJOR_VERSION}.${MINHOOK_MINOR_VERSION}.${MINHOOK_PATCH_VERSION})
+set(MINHOOK_MAJOR_VERSION ${PROJECT_VERSION_MAJOR})
+set(MINHOOK_MINOR_VERSION ${PROJECT_VERSION_MINOR})
+set(MINHOOK_PATCH_VERSION ${PROJECT_VERSION_PATCH})
+set(MINHOOK_VERSION ${PROJECT_VERSION})
 
 ################
-#    BUILD     # 
+#    BUILD     #
 ################
 
 option(BUILD_SHARED_LIBS "build shared version" OFF)
 
-set(SOURCES_MINHOOK 
+set(SOURCES_MINHOOK
   "src/buffer.c"
   "src/hook.c"
   "src/trampoline.c"
@@ -53,26 +59,36 @@ else()
   set(SOURCES_HDE "src/hde/hde32.c")
 endif()
 
-if(BUILD_SHARED_LIBS)
-  set(RESOURCES 
+set(RESOURCES "")
+
+if(WIN32 AND BUILD_SHARED_LIBS)
+  enable_language(RC)
+  set(RESOURCES
     "dll_resources/MinHook.rc"
     "dll_resources/MinHook.def"
   )
 endif()
 
 add_library(minhook ${SOURCES_MINHOOK} ${SOURCES_HDE} ${RESOURCES})
+add_library(minhook::minhook ALIAS minhook)
 
-target_include_directories(minhook PUBLIC
-  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include/>
-  $<INSTALL_INTERFACE:include>
+target_sources(minhook PUBLIC
+  FILE_SET HEADERS
+  BASE_DIRS "${CMAKE_CURRENT_SOURCE_DIR}/include"
+  FILES "${CMAKE_CURRENT_SOURCE_DIR}/include/MinHook.h"
 )
 
 target_include_directories(minhook PRIVATE "src/")
 target_include_directories(minhook PRIVATE "src/hde/")
 
+set_target_properties(minhook PROPERTIES
+  VERSION ${PROJECT_VERSION}
+  SOVERSION ${PROJECT_VERSION_MAJOR}
+)
+
 if(WIN32)
   set_target_properties(minhook PROPERTIES PREFIX "")
-  if(CMAKE_SIZEOF_VOID_P EQUAL 8)   
+  if(CMAKE_SIZEOF_VOID_P EQUAL 8)
     set_target_properties(minhook PROPERTIES DEBUG_POSTFIX ".x64d")
     set_target_properties(minhook PROPERTIES RELEASE_POSTFIX ".x64")
     set_target_properties(minhook PROPERTIES RELWITHDEBINFO_POSTFIX ".x64")
@@ -85,35 +101,39 @@ if(WIN32)
   endif()
 else()
   set_target_properties(minhook PROPERTIES PREFIX "lib")
-  set_target_properties(minhook PROPERTIES POSTFIX "")
   set_target_properties(minhook PROPERTIES DEBUG_POSTFIX "d")
 endif()
 
 ################
-# CMAKE CONFIG # 
+# CMAKE CONFIG #
 ################
+
+set(MINHOOK_INSTALL_CMAKEDIR "${CMAKE_INSTALL_DATADIR}/minhook")
 
 configure_package_config_file(
     "cmake/minhook-config.cmake.in"
     "minhook-config.cmake"
-  INSTALL_DESTINATION 
-    "share/minhook"
+  INSTALL_DESTINATION
+    "${MINHOOK_INSTALL_CMAKEDIR}"
+  PATH_VARS
+    CMAKE_INSTALL_INCLUDEDIR
+    CMAKE_INSTALL_LIBDIR
 )
 
 write_basic_package_version_file(
   "minhook-config-version.cmake"
-VERSION 
+VERSION
   ${MINHOOK_VERSION}
 COMPATIBILITY
   AnyNewerVersion
 )
 
 install(
-  FILES 
+  FILES
     "${CMAKE_CURRENT_BINARY_DIR}/minhook-config.cmake"
     "${CMAKE_CURRENT_BINARY_DIR}/minhook-config-version.cmake"
-  DESTINATION 
-    "share/minhook"
+  DESTINATION
+    "${MINHOOK_INSTALL_CMAKEDIR}"
 )
 
 ###################
@@ -122,20 +142,17 @@ install(
 
 install(TARGETS minhook
         EXPORT minhook-targets
-        RUNTIME DESTINATION "bin"
-        ARCHIVE DESTINATION "lib"
-        LIBRARY DESTINATION "lib"
+        RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}"
+        ARCHIVE DESTINATION "${CMAKE_INSTALL_LIBDIR}"
+        LIBRARY DESTINATION "${CMAKE_INSTALL_LIBDIR}"
+        FILE_SET HEADERS DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}"
 )
 
 install(
   EXPORT
     minhook-targets
-  NAMESPACE 
+  NAMESPACE
     minhook::
-  DESTINATION 
-    "share/minhook"
-)
-
-install(
-  DIRECTORY include DESTINATION .
+  DESTINATION
+    "${MINHOOK_INSTALL_CMAKEDIR}"
 )
